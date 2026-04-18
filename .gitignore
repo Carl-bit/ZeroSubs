@@ -1,0 +1,73 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnp.cjs
+
+# Build output
+dist/
+build/
+.next/
+.turbo/
+out/
+
+# TypeScript
+*.tsbuildinfo
+
+# Env files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Prisma
+backend/prisma/migrations/dev.db*
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Caches
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Coverage / tests
+coverage/
+*.lcov
+.nyc_output/
+
+# Vite
+frontend/dist/
+frontend/.vite/
+
+# Expo / mobile
+mobile/.expo/
+mobile/.expo-shared/
+mobile/web-build/
+mobile/android/
+mobile/ios/
+
+# Docker
+docker/.env
+docker/media/
+
+# Local scratch
+*.local
+.tmp/
+tmp/

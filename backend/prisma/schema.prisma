@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  createdAt    DateTime       @default(now())
+  profile      UserProfile?
+  progress     UserProgress[]
+  files        UserFile[]
+  gameResults  GameResult[]
+  following    UserFollow[]   @relation("follower")
+  followers    UserFollow[]   @relation("following")
+}
+
+model UserProfile {
+  userId          String   @id
+  user            User     @relation(fields: [userId], references: [id])
+  targetLanguages String[]
+  level           Int      @default(0)
+  interests       String[]
+  xpTotal         Int      @default(0)
+  streakDays      Int      @default(0)
+  lastActiveAt    DateTime @default(now())
+}
+
+model UserProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  exerciseType String
+  wasCorrect   Boolean
+  errorType    String?
+  createdAt    DateTime @default(now())
+}
+
+model UserFile {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  originalName String
+  fileType     String
+  chunks       String[]
+  createdAt    DateTime @default(now())
+}
+
+model GameResult {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  gameType   String
+  won        Boolean
+  language   String
+  opponentId String?
+  createdAt  DateTime @default(now())
+}
+
+model UserFollow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("follower", fields: [followerId], references: [id])
+  following   User     @relation("following", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
+}
+
+model SubtitleCache {
+  id        String   @id @default(cuid())
+  tmdbId    Int
+  language  String
+  content   String
+  source    String
+  score     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([tmdbId, language])
+  @@index([tmdbId])
+}
