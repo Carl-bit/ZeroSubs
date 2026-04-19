@@ -27,14 +27,23 @@ const LANGS = (process.env.SUBTITLE_SEED_LANGS ?? 'es,en')
   .map((l) => l.trim())
   .filter(Boolean);
 
-// Los hostnames del compose (postgres, redis) no resuelven desde el host.
-// Si el script corre fuera del network de docker, auto-ajustamos a localhost.
-function hostToLocal(url: string, dockerHost: string): string {
-  return url.replace(`@${dockerHost}:`, '@localhost:');
+// Los hostnames del compose (postgres, redis) no resuelven desde el host, y el
+// puerto expuesto al host puede diferir del interno (ver POSTGRES_HOST_PORT /
+// REDIS_HOST_PORT en compose.yml). Reescribimos hostname + puerto si aplica.
+function hostRewrite(url: string, dockerHost: string, hostPort: number | undefined): string {
+  const re = new RegExp(`@${dockerHost}:(\\d+)`);
+  return url.replace(re, (_, internalPort: string) => `@localhost:${hostPort ?? internalPort}`);
 }
-const REDIS_URL = hostToLocal(process.env.REDIS_URL ?? 'redis://localhost:6379', 'redis');
+const PG_HOST_PORT = process.env.POSTGRES_HOST_PORT ? Number(process.env.POSTGRES_HOST_PORT) : 5433;
+const REDIS_HOST_PORT = process.env.REDIS_HOST_PORT ? Number(process.env.REDIS_HOST_PORT) : 6380;
+
+const REDIS_URL = hostRewrite(
+  process.env.REDIS_URL ?? `redis://localhost:${REDIS_HOST_PORT}`,
+  'redis',
+  REDIS_HOST_PORT,
+);
 const DATABASE_URL = process.env.DATABASE_URL
-  ? hostToLocal(process.env.DATABASE_URL, 'postgres')
+  ? hostRewrite(process.env.DATABASE_URL, 'postgres', PG_HOST_PORT)
   : undefined;
 
 if (!TMDB_API_KEY) {
