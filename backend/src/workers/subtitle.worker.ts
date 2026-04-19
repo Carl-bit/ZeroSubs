@@ -5,11 +5,14 @@ import { redis } from '../db/redis.js';
 import { PodnapisiProvider } from '../services/subtitle/providers/PodnapisiProvider.js';
 import { SubDLProvider } from '../services/subtitle/providers/SubDLProvider.js';
 import { OpenSubtitlesProvider } from '../services/subtitle/providers/OpenSubtitlesProvider.js';
-import type { SubtitleProvider } from '../services/subtitle/providers/types.js';
+import type { MediaType, SubtitleProvider } from '../services/subtitle/providers/types.js';
 
 interface SubtitleFetchJob {
   tmdbId: number;
   languages: string[];
+  mediaType?: MediaType; // default "movie" por compat con jobs viejos
+  season?: number;
+  episode?: number;
 }
 
 const providers: { name: string; provider: SubtitleProvider }[] = [
@@ -22,33 +25,58 @@ const whisperQueue = new Queue('subtitle-whisper', { connection: redis });
 
 async function processJob(job: Job<SubtitleFetchJob>): Promise<void> {
   const { tmdbId, languages } = job.data;
+  const mediaType: MediaType = job.data.mediaType ?? 'movie';
+  const season = job.data.season ?? 0;
+  const episode = job.data.episode ?? 0;
+  const tag = `tmdbId=${tmdbId} type=${mediaType}${mediaType === 'tv' ? ` s${season}e${episode}` : ''}`;
 
   for (const language of languages) {
     const existing = await prisma.subtitleCache.findUnique({
-      where: { tmdbId_language: { tmdbId, language } },
+      where: {
+        tmdbId_mediaType_season_episode_language: {
+          tmdbId,
+          mediaType,
+          season,
+          episode,
+          language,
+        },
+      },
     });
     if (existing) {
-      console.log(
-        `[subtitle-worker] skip tmdbId=${tmdbId} lang=${language} (cached from ${existing.source})`,
-      );
+      console.log(`[subtitle-worker] skip ${tag} lang=${language} (cached from ${existing.source})`);
       continue;
     }
 
     let saved = false;
     for (const { name, provider } of providers) {
       try {
-        const result = await provider.search(tmdbId, language);
+        const result = await provider.search({
+          tmdbId,
+          language,
+          mediaType,
+          season: mediaType === 'tv' ? season : undefined,
+          episode: mediaType === 'tv' ? episode : undefined,
+        });
         if (!result) {
-          console.log(
-            `[subtitle-worker] miss tmdbId=${tmdbId} lang=${language} provider=${name}`,
-          );
+          console.log(`[subtitle-worker] miss ${tag} lang=${language} provider=${name}`);
           continue;
         }
 
         await prisma.subtitleCache.upsert({
-          where: { tmdbId_language: { tmdbId, language } },
+          where: {
+            tmdbId_mediaType_season_episode_language: {
+              tmdbId,
+              mediaType,
+              season,
+              episode,
+              language,
+            },
+          },
           create: {
             tmdbId,
+            mediaType,
+            season,
+            episode,
             language,
             content: result.content,
             source: result.source,
@@ -61,23 +89,19 @@ async function processJob(job: Job<SubtitleFetchJob>): Promise<void> {
           },
         });
         console.log(
-          `[subtitle-worker] hit tmdbId=${tmdbId} lang=${language} source=${result.source} score=${result.score}`,
+          `[subtitle-worker] hit ${tag} lang=${language} source=${result.source} score=${result.score}`,
         );
         saved = true;
         break;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[subtitle-worker] error tmdbId=${tmdbId} lang=${language} provider=${name}: ${msg}`,
-        );
+        console.warn(`[subtitle-worker] error ${tag} lang=${language} provider=${name}: ${msg}`);
       }
     }
 
     if (!saved) {
-      await whisperQueue.add('transcribe', { tmdbId, language });
-      console.log(
-        `[subtitle-worker] fallback -> whisper queue tmdbId=${tmdbId} lang=${language}`,
-      );
+      await whisperQueue.add('transcribe', { tmdbId, mediaType, season, episode, language });
+      console.log(`[subtitle-worker] fallback -> whisper queue ${tag} lang=${language}`);
     }
   }
 }

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AdmZip from 'adm-zip';
-import type { SubtitleProvider, SubtitleResult } from './types.js';
+import type { SubtitleProvider, SubtitleResult, SubtitleSearchQuery } from './types.js';
 
 interface SubDLSubtitle {
   url: string;
@@ -18,13 +18,18 @@ export class SubDLProvider implements SubtitleProvider {
   private readonly base = 'https://api.subdl.com/api/v1/subtitles';
   private readonly cdn = 'https://dl.subdl.com';
 
-  async search(tmdbId: number, language: string): Promise<SubtitleResult | null> {
+  async search(q: SubtitleSearchQuery): Promise<SubtitleResult | null> {
+    const params: Record<string, string | number> = {
+      tmdb_id: q.tmdbId,
+      languages: q.language,
+      type: q.mediaType, // movie | tv
+      ...(process.env.SUBDL_API_KEY ? { api_key: process.env.SUBDL_API_KEY } : {}),
+    };
+    if (q.mediaType === 'tv' && q.season != null) params.season_number = q.season;
+    if (q.mediaType === 'tv' && q.episode != null) params.episode_number = q.episode;
+
     const res = await axios.get<SubDLResponse>(this.base, {
-      params: {
-        tmdb_id: tmdbId,
-        languages: language,
-        ...(process.env.SUBDL_API_KEY ? { api_key: process.env.SUBDL_API_KEY } : {}),
-      },
+      params,
       timeout: 15000,
     });
 

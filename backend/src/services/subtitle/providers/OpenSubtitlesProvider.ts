@@ -1,6 +1,6 @@
 import axios, { type AxiosInstance } from 'axios';
 import type { Redis } from 'ioredis';
-import type { SubtitleProvider, SubtitleResult } from './types.js';
+import type { SubtitleProvider, SubtitleResult, SubtitleSearchQuery } from './types.js';
 
 const DAILY_LIMIT = 20;
 const COUNTER_KEY = 'os_daily_count';
@@ -53,9 +53,17 @@ export class OpenSubtitlesProvider implements SubtitleProvider {
     });
   }
 
-  async search(tmdbId: number, language: string): Promise<SubtitleResult | null> {
+  async search(q: SubtitleSearchQuery): Promise<SubtitleResult | null> {
+    const params: Record<string, string | number> = {
+      tmdb_id: q.tmdbId,
+      languages: q.language,
+      type: q.mediaType, // movie | tv
+    };
+    if (q.mediaType === 'tv' && q.season != null) params.season_number = q.season;
+    if (q.mediaType === 'tv' && q.episode != null) params.episode_number = q.episode;
+
     const searchRes = await this.client.get<OSSearchResponse>('/subtitles', {
-      params: { tmdb_id: tmdbId, languages: language },
+      params,
     });
     const data = searchRes.data?.data ?? [];
     if (!data.length) return null;

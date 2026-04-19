@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AdmZip from 'adm-zip';
-import type { SubtitleProvider, SubtitleResult } from './types.js';
+import type { SubtitleProvider, SubtitleResult, SubtitleSearchQuery } from './types.js';
 
 interface PodnapisiResult {
   id: string;
@@ -16,14 +16,19 @@ interface PodnapisiResponse {
 export class PodnapisiProvider implements SubtitleProvider {
   private readonly base = 'https://www.podnapisi.net';
 
-  async search(tmdbId: number, language: string): Promise<SubtitleResult | null> {
-    const res = await axios.get<PodnapisiResponse>(
-      `${this.base}/subtitles/search/old`,
-      {
-        params: { tmdb: tmdbId, language, format: 'json' },
-        timeout: 15000,
-      },
-    );
+  async search(q: SubtitleSearchQuery): Promise<SubtitleResult | null> {
+    const params: Record<string, string | number> = {
+      tmdb: q.tmdbId,
+      language: q.language,
+      format: 'json',
+    };
+    if (q.mediaType === 'tv' && q.season != null) params.seasons = q.season;
+    if (q.mediaType === 'tv' && q.episode != null) params.episodes = q.episode;
+
+    const res = await axios.get<PodnapisiResponse>(`${this.base}/subtitles/search/old`, {
+      params,
+      timeout: 15000,
+    });
 
     const results = res.data?.data ?? res.data?.results ?? [];
     if (!results.length) return null;

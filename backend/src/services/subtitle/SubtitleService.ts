@@ -14,9 +14,18 @@ function cleanLine(raw: string): string {
 }
 
 export const SubtitleService = {
-  async getByTmdbId(tmdbId: number, language: string): Promise<string | null> {
+  async getByTmdbId(
+    tmdbId: number,
+    language: string,
+    opts: { mediaType?: 'movie' | 'tv'; season?: number; episode?: number } = {},
+  ): Promise<string | null> {
+    const where: Record<string, unknown> = { tmdbId, language };
+    if (opts.mediaType) where.mediaType = opts.mediaType;
+    if (opts.season != null) where.season = opts.season;
+    if (opts.episode != null) where.episode = opts.episode;
+
     const row = await prisma.subtitleCache.findFirst({
-      where: { tmdbId, language },
+      where,
       select: { content: true },
     });
     return row?.content ?? null;

@@ -54,14 +54,24 @@ async function enqueueMissing(): Promise<void> {
   let enqueued = 0;
   for (const tmdbId of ids) {
     const existing = await prisma.subtitleCache.findMany({
-      where: { tmdbId, language: { in: LANGUAGES } },
+      where: {
+        tmdbId,
+        mediaType: 'movie',
+        season: 0,
+        episode: 0,
+        language: { in: LANGUAGES },
+      },
       select: { language: true },
     });
     const have = new Set(existing.map((e) => e.language));
     const missing = LANGUAGES.filter((l) => !have.has(l));
     if (!missing.length) continue;
 
-    await fetchQueue.add('fetch', { tmdbId, languages: missing });
+    await fetchQueue.add(
+      'fetch',
+      { tmdbId, mediaType: 'movie', languages: missing },
+      { jobId: `tmdb-movie-${tmdbId}`, removeOnComplete: true, removeOnFail: 100 },
+    );
     enqueued++;
   }
 

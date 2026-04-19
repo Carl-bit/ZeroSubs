@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -75,12 +76,15 @@ model UserFollow {
 model SubtitleCache {
   id        String   @id @default(cuid())
   tmdbId    Int
+  mediaType String   @default("movie") // "movie" | "tv"
+  season    Int      @default(0) // 0 para peliculas o show-level; >0 para episodios TV
+  episode   Int      @default(0) // 0 para peliculas o show-level; >0 para episodios TV
   language  String
   content   String
   source    String
   score     Int      @default(0)
   createdAt DateTime @default(now())
 
-  @@unique([tmdbId, language])
-  @@index([tmdbId])
+  @@unique([tmdbId, mediaType, season, episode, language])
+  @@index([tmdbId, mediaType])
 }

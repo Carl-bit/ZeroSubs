@@ -21,7 +21,10 @@ if (envLoaded) {
 }
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY;
-const SUBTITLE_SEED_LIMIT = Number(process.env.SUBTITLE_SEED_LIMIT ?? 200);
+const MOVIE_LIMIT = Number(
+  process.env.SUBTITLE_SEED_MOVIE_LIMIT ?? process.env.SUBTITLE_SEED_LIMIT ?? 500,
+);
+const TV_LIMIT = Number(process.env.SUBTITLE_SEED_TV_LIMIT ?? 200);
 const LANGS = (process.env.SUBTITLE_SEED_LANGS ?? 'es,en')
   .split(',')
   .map((l) => l.trim())
@@ -59,20 +62,30 @@ const pg = new PgClient({ connectionString: DATABASE_URL });
 const redis = new Redis(REDIS_URL, { maxRetriesPerRequest: null });
 const queue = new Queue('subtitle-fetch', { connection: redis });
 
-type Movie = { id: number; title: string };
+type MediaType = 'movie' | 'tv';
+type Item = { id: number; title: string };
 
-async function fetchPage(page: number): Promise<Movie[]> {
-  const res = await axios.get('https://api.themoviedb.org/3/movie/popular', {
+async function fetchPage(kind: MediaType, page: number): Promise<Item[]> {
+  const endpoint = kind === 'movie' ? '/movie/popular' : '/tv/popular';
+  const res = await axios.get(`https://api.themoviedb.org/3${endpoint}`, {
     params: { api_key: TMDB_API_KEY, page, language: 'en-US' },
   });
-  return res.data.results as Movie[];
+  // TV usa `name`, movies usan `title`.
+  return (res.data.results as any[]).map((r) => ({
+    id: r.id,
+    title: r.title ?? r.name ?? `(${kind} ${r.id})`,
+  }));
 }
 
-async function coveredTmdbIds(ids: number[], langs: string[]): Promise<Set<number>> {
+// Cobertura DB: una pelicula/show esta cubierto si tiene fila para cada idioma
+// pedido, a nivel show (season=0, episode=0) - que es lo que sembramos aca.
+async function coveredIds(kind: MediaType, ids: number[], langs: string[]): Promise<Set<number>> {
   if (!ids.length) return new Set();
   const { rows } = await pg.query<{ tmdbid: number; language: string }>(
-    'SELECT "tmdbId" AS tmdbid, language FROM "SubtitleCache" WHERE "tmdbId" = ANY($1) AND language = ANY($2)',
-    [ids, langs],
+    `SELECT "tmdbId" AS tmdbid, language FROM "SubtitleCache"
+     WHERE "tmdbId" = ANY($1) AND "mediaType" = $2 AND season = 0 AND episode = 0
+     AND language = ANY($3)`,
+    [ids, kind, langs],
   );
   const byId = new Map<number, Set<string>>();
   for (const r of rows) {
@@ -84,6 +97,64 @@ async function coveredTmdbIds(ids: number[], langs: string[]): Promise<Set<numbe
     if (langs.every((l) => langSet.has(l))) covered.add(id);
   }
   return covered;
+}
+
+interface RunCounters {
+  processed: number;
+  enqueued: number;
+  alreadyInDb: number;
+  duplicateJobs: number;
+}
+
+async function seed(kind: MediaType, limit: number, pgOk: boolean): Promise<RunCounters> {
+  const counters: RunCounters = { processed: 0, enqueued: 0, alreadyInDb: 0, duplicateJobs: 0 };
+  if (limit <= 0) return counters;
+  console.log(`\n--- Sembrando ${limit} ${kind === 'movie' ? 'peliculas' : 'series'} populares ---`);
+
+  let page = 1;
+  while (counters.processed < limit) {
+    let results: Item[];
+    try {
+      results = await fetchPage(kind, page);
+    } catch (err) {
+      console.error(`TMDB ${kind} page ${page} fallo: ${(err as Error).message}`);
+      break;
+    }
+    if (!results.length) break;
+
+    const remaining = limit - counters.processed;
+    const slice = results.slice(0, remaining);
+    const ids = slice.map((m) => m.id);
+
+    const covered = pgOk ? await coveredIds(kind, ids, LANGS) : new Set<number>();
+
+    for (const item of slice) {
+      counters.processed++;
+      if (covered.has(item.id)) {
+        counters.alreadyInDb++;
+        continue;
+      }
+      const jobId = `tmdb-${kind}-${item.id}`;
+      const existing = await queue.getJob(jobId);
+      if (existing) {
+        counters.duplicateJobs++;
+        continue;
+      }
+      await queue.add(
+        'fetch',
+        { tmdbId: item.id, mediaType: kind, languages: LANGS },
+        { jobId, removeOnComplete: true, removeOnFail: 100 },
+      );
+      counters.enqueued++;
+    }
+
+    console.log(
+      `${kind} pagina ${page}: procesadas ${counters.processed}/${limit} | encoladas ${counters.enqueued} | en DB ${counters.alreadyInDb} | ya en cola ${counters.duplicateJobs}`,
+    );
+    page++;
+  }
+
+  return counters;
 }
 
 async function main() {
@@ -98,63 +169,20 @@ async function main() {
   }
 
   console.log(
-    `Sembrando hasta ${SUBTITLE_SEED_LIMIT} peliculas (idiomas: ${LANGS.join(', ')})...`,
+    `Sembrando peliculas (${MOVIE_LIMIT}) + series (${TV_LIMIT}) | idiomas: ${LANGS.join(', ')}`,
   );
 
-  let processed = 0;
-  let enqueued = 0;
-  let alreadyInDb = 0;
-  let duplicateJobs = 0;
-  let page = 1;
-
-  while (processed < SUBTITLE_SEED_LIMIT) {
-    let results: Movie[];
-    try {
-      results = await fetchPage(page);
-    } catch (err) {
-      console.error(`TMDB page ${page} fallo: ${(err as Error).message}`);
-      break;
-    }
-    if (!results.length) break;
-
-    const remaining = SUBTITLE_SEED_LIMIT - processed;
-    const slice = results.slice(0, remaining);
-    const ids = slice.map((m) => m.id);
-
-    const covered = pgOk ? await coveredTmdbIds(ids, LANGS) : new Set<number>();
-
-    for (const movie of slice) {
-      processed++;
-      if (covered.has(movie.id)) {
-        alreadyInDb++;
-        continue;
-      }
-      const jobId = `tmdb-${movie.id}`;
-      const existing = await queue.getJob(jobId);
-      if (existing) {
-        duplicateJobs++;
-        continue;
-      }
-      await queue.add(
-        'fetch',
-        { tmdbId: movie.id, languages: LANGS },
-        { jobId, removeOnComplete: true, removeOnFail: 100 },
-      );
-      enqueued++;
-    }
-
-    console.log(
-      `Pagina ${page}: procesadas ${processed}/${SUBTITLE_SEED_LIMIT} | encoladas ${enqueued} | en DB ${alreadyInDb} | ya en cola ${duplicateJobs}`,
-    );
-    page++;
-  }
+  // Orden: peliculas primero, series despues (series son mas pesadas por temporadas/episodios).
+  const movies = await seed('movie', MOVIE_LIMIT, pgOk);
+  const tv = await seed('tv', TV_LIMIT, pgOk);
 
   console.log('');
   console.log('=== Resumen seed ===');
-  console.log(`Procesadas:      ${processed}`);
-  console.log(`Encoladas nuevas:${enqueued}`);
-  console.log(`Ya en DB:        ${alreadyInDb}`);
-  console.log(`Ya en cola:      ${duplicateJobs}`);
+  const row = (label: string, c: RunCounters) =>
+    `${label.padEnd(12)} proc=${c.processed} nuevas=${c.enqueued} enDB=${c.alreadyInDb} enCola=${c.duplicateJobs}`;
+  console.log(row('Peliculas:', movies));
+  console.log(row('Series:', tv));
+  console.log(`Total encoladas: ${movies.enqueued + tv.enqueued}`);
   console.log('====================');
 
   await queue.close();

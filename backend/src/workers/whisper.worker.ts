@@ -7,6 +7,9 @@ import { redis } from '../db/redis.js';
 interface WhisperJob {
   tmdbId: number;
   language: string;
+  mediaType?: 'movie' | 'tv';
+  season?: number;
+  episode?: number;
   videoPath?: string;
 }
 
@@ -19,6 +22,9 @@ const SUBGEN_URL = process.env.SUBGEN_URL;
 
 async function processJob(job: Job<WhisperJob>): Promise<void> {
   const { tmdbId, language, videoPath } = job.data;
+  const mediaType = job.data.mediaType ?? 'movie';
+  const season = job.data.season ?? 0;
+  const episode = job.data.episode ?? 0;
 
   if (!SUBGEN_URL) {
     console.log(
@@ -47,8 +53,10 @@ async function processJob(job: Job<WhisperJob>): Promise<void> {
   }
 
   await prisma.subtitleCache.upsert({
-    where: { tmdbId_language: { tmdbId, language } },
-    create: { tmdbId, language, content, source: 'whisper', score: 0 },
+    where: {
+      tmdbId_mediaType_season_episode_language: { tmdbId, mediaType, season, episode, language },
+    },
+    create: { tmdbId, mediaType, season, episode, language, content, source: 'whisper', score: 0 },
     update: { content, source: 'whisper', score: 0 },
   });
 
