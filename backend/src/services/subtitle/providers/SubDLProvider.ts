@@ -62,11 +62,35 @@ function extractSrt(buffer: Buffer): string | null {
     try {
       const zip = new AdmZip(buffer);
       const entry = zip.getEntries().find((e) => e.entryName.toLowerCase().endsWith('.srt'));
-      return entry ? entry.getData().toString('utf8') : null;
+      if (!entry) return null;
+      return sanitize(decodeBuffer(entry.getData()));
     } catch {
       return null;
     }
   }
-  const text = buffer.toString('utf8');
+  const text = sanitize(decodeBuffer(buffer));
   return /-->/.test(text) ? text : null;
+}
+
+function decodeBuffer(buf: Buffer): string {
+  if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
+    return buf.subarray(2).toString('utf16le');
+  }
+  if (buf.length >= 2 && buf[0] === 0xfe && buf[1] === 0xff) {
+    const swapped = Buffer.alloc(buf.length - 2);
+    for (let i = 2; i < buf.length; i += 2) {
+      swapped[i - 2] = buf[i + 1] ?? 0;
+      swapped[i - 1] = buf[i] ?? 0;
+    }
+    return swapped.toString('utf16le');
+  }
+  if (buf.length >= 3 && buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) {
+    return buf.subarray(3).toString('utf8');
+  }
+  return buf.toString('utf8');
+}
+
+function sanitize(s: string): string {
+  // Postgres text no acepta 0x00. Tambien limpiamos replacement char de decodes fallidos.
+  return s.replace(/\u0000/g, '').replace(/\uFFFD/g, '');
 }

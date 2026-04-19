@@ -60,6 +60,8 @@ async function processJob(job: Job<SubtitleFetchJob>): Promise<void> {
           continue;
         }
 
+        const content = result.content.replace(/\u0000/g, '');
+
         await prisma.subtitleCache.upsert({
           where: {
             tmdbId_mediaType_season_episode_language: {
@@ -76,12 +78,12 @@ async function processJob(job: Job<SubtitleFetchJob>): Promise<void> {
             season,
             episode,
             language,
-            content: result.content,
+            content,
             source: result.source,
             score: result.score,
           },
           update: {
-            content: result.content,
+            content,
             source: result.source,
             score: result.score,
           },
