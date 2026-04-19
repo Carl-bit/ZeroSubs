@@ -202,7 +202,7 @@ Implementa backend/src/workers/whisper.worker.ts:
   Si no hay video local: log y skip (whisper necesita el archivo).
 ```
 
-### 0.5.3 - Script de seed inicial
+### 0.5.3 - Script de seed inicial ------>here!!!!
 ```
 Implementa scripts/seed-subtitles.ts (script standalone, no parte del server):
   Lee TMDB_API_KEY y SUBTITLE_SEED_LIMIT (default 200) de .env.
