@@ -39,12 +39,12 @@ export class SubDLProvider implements SubtitleProvider {
     const best = subtitles[0];
     const downloadUrl = best.url.startsWith('http') ? best.url : `${this.cdn}${best.url}`;
 
-    const zipRes = await axios.get<ArrayBuffer>(downloadUrl, {
+    const dlRes = await axios.get<ArrayBuffer>(downloadUrl, {
       responseType: 'arraybuffer',
       timeout: 20000,
     });
 
-    const content = extractSrt(Buffer.from(zipRes.data));
+    const content = extractSrt(Buffer.from(dlRes.data));
     if (!content) return null;
 
     return {
@@ -56,7 +56,17 @@ export class SubDLProvider implements SubtitleProvider {
 }
 
 function extractSrt(buffer: Buffer): string | null {
-  const zip = new AdmZip(buffer);
-  const entry = zip.getEntries().find((e) => e.entryName.toLowerCase().endsWith('.srt'));
-  return entry ? entry.getData().toString('utf8') : null;
+  // ZIP magic bytes: PK\x03\x04
+  const isZip = buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b;
+  if (isZip) {
+    try {
+      const zip = new AdmZip(buffer);
+      const entry = zip.getEntries().find((e) => e.entryName.toLowerCase().endsWith('.srt'));
+      return entry ? entry.getData().toString('utf8') : null;
+    } catch {
+      return null;
+    }
+  }
+  const text = buffer.toString('utf8');
+  return /-->/.test(text) ? text : null;
 }
