@@ -2,7 +2,6 @@ import 'dotenv/config';
 import { Queue, Worker, type Job } from 'bullmq';
 import { prisma } from '../db/prisma.js';
 import { redis } from '../db/redis.js';
-import { PodnapisiProvider } from '../services/subtitle/providers/PodnapisiProvider.js';
 import { SubDLProvider } from '../services/subtitle/providers/SubDLProvider.js';
 import { OpenSubtitlesProvider } from '../services/subtitle/providers/OpenSubtitlesProvider.js';
 import type { MediaType, SubtitleProvider } from '../services/subtitle/providers/types.js';
@@ -16,7 +15,6 @@ interface SubtitleFetchJob {
 }
 
 const providers: { name: string; provider: SubtitleProvider }[] = [
-  { name: 'podnapisi', provider: new PodnapisiProvider() },
   { name: 'subdl', provider: new SubDLProvider() },
   { name: 'opensubtitles', provider: new OpenSubtitlesProvider(redis) },
 ];
