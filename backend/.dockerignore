@@ -1,0 +1,58 @@
+# Dependencias
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build
+dist
+build
+*.tsbuildinfo
+coverage
+
+# Env (se inyectan via env_file del compose)
+.env
+.env.*
+!.env.example
+
+# Prisma local DB / migraciones dev
+prisma/migrations/dev.db*
+prisma/*.db
+prisma/*.db-journal
+
+# Caches
+.cache
+.eslintcache
+.stylelintcache
+.prettiercache
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docs / misc (no hacen falta dentro del contenedor)
+README.md
+*.md
+!package.json
+!tsconfig.json
+
+# Tests
+test
+tests
+__tests__
+*.test.ts
+*.spec.ts
+
+# Scratch
+*.local
+.tmp
+tmp

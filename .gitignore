@@ -1,73 +1,166 @@
-# Dependencies
+# =========================================================
+# ZeroSubs - .gitignore raiz (monorepo)
+# Cubre: scripts/ (raiz), backend/, frontend/, mobile/, docker/
+# =========================================================
+
+# ---------- Dependencias ----------
 node_modules/
 .pnp
 .pnp.js
 .pnp.cjs
+jspm_packages/
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnpm-store/
 
-# Build output
+# Lockfiles alternos (usamos npm)
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+
+# ---------- Build output ----------
 dist/
 build/
-.next/
-.turbo/
 out/
+.next/
+.nuxt/
+.turbo/
+.vite/
+.svelte-kit/
+.astro/
+.rollup.cache/
+.webpack/
+.parcel-cache/
 
-# TypeScript
+# ---------- TypeScript ----------
 *.tsbuildinfo
+tsconfig.tsbuildinfo
 
-# Env files
+# ---------- Env files ----------
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
+!.env.*.example
 
-# Prisma
+# ---------- Prisma ----------
 backend/prisma/migrations/dev.db*
 backend/prisma/*.db
 backend/prisma/*.db-journal
+backend/prisma/generated/
+# Cliente generado custom (si prisma usa output = "...")
+**/.prisma/
+**/generated/prisma/
 
-# Logs
+# ---------- Logs ----------
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# Editor / OS
+# ---------- Editor / OS ----------
 .vscode/
 !.vscode/extensions.json
+!.vscode/settings.json.example
 .idea/
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
 desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
 
-# Caches
+# ---------- Caches ----------
 .cache/
-.parcel-cache/
 .eslintcache
 .stylelintcache
+.prettiercache
+.sass-cache/
 
-# Coverage / tests
+# ---------- Coverage / tests ----------
 coverage/
 *.lcov
 .nyc_output/
+test-results/
+playwright-report/
+playwright/.cache/
+cypress/screenshots/
+cypress/videos/
 
-# Vite
+# ---------- Frontend (Vite) ----------
 frontend/dist/
 frontend/.vite/
+frontend/.vitepress/cache/
+frontend/.vitepress/dist/
 
-# Expo / mobile
+# ---------- Mobile (Expo / React Native) ----------
 mobile/.expo/
 mobile/.expo-shared/
 mobile/web-build/
+mobile/dist/
 mobile/android/
 mobile/ios/
+mobile/*.jks
+mobile/*.p8
+mobile/*.p12
+mobile/*.key
+mobile/*.mobileprovision
+mobile/*.orig.*
+# Expo types generados (si aplica, descomentar)
+# mobile/expo-env.d.ts
 
-# Docker
+# ---------- Backend ----------
+backend/dist/
+backend/uploads/
+backend/tmp/
+
+# ---------- Docker ----------
 docker/.env
 docker/media/
+docker/volumes/
+docker-compose.override.yml
 
-# Local scratch
+# ---------- Scripts (raiz) ----------
+scripts/tmp/
+scripts/*.local.ts
+
+# ---------- Binarios / archivos pesados ----------
+*.srt.bak
+*.mp4
+*.mkv
+*.webm
+*.mp3
+*.wav
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# ---------- Secretos / credenciales ----------
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+secrets/
+.secrets/
+
+# ---------- Local scratch ----------
 *.local
 .tmp/
 tmp/
+.scratch/
+TODO.local.md
+NOTES.local.md
+
+# ---------- Claude / AI tooling ----------
+.claude/settings.local.json

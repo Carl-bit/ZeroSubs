@@ -9,8 +9,8 @@ import { Client as PgClient } from 'pg';
 // .env puede vivir en raiz, docker/ o backend/. Cargamos el primero que exista.
 const envCandidates = [
   resolve(process.cwd(), '.env'),
-  resolve(process.cwd(), 'docker/.env'),
-  resolve(process.cwd(), 'backend/.env'),
+  resolve(process.cwd(), 'docker/.env.example'),
+  resolve(process.cwd(), 'backend/.env.example'),
 ];
 const envLoaded = envCandidates.find((p) => existsSync(p));
 if (envLoaded) {
